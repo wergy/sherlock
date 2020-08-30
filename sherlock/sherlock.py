@@ -25,7 +25,7 @@ from notify import QueryNotifyPrint
 from sites  import SitesInformation
 
 module_name = "Sherlock: Find Usernames Across Social Networks"
-__version__ = "0.12.2"
+__version__ = "0.12.6"
 
 
 
@@ -438,9 +438,6 @@ def main():
                         action="store_true",  dest="verbose", default=False,
                         help="Display extra debugging information and metrics."
                         )
-    parser.add_argument("--rank", "-r",
-                        action="store_true", dest="rank", default=False,
-                        help="Present websites ordered by their Alexa.com global rank in popularity.")
     parser.add_argument("--folderoutput", "-fo", dest="folderoutput",
                         help="If using multiple usernames, the output of the results will be saved to this folder."
                         )
@@ -492,9 +489,24 @@ def main():
                         )
     parser.add_argument("--browse", "-b",
                         action="store_true", dest="browse", default=False,
-                        help="Browse to all results on default bowser.")
+                        help="Browse to all results on default browser.")
 
     args = parser.parse_args()
+
+    # Check for newer version of Sherlock. If it exists, let the user know about it
+
+    try:
+        r = requests.get("https://raw.githubusercontent.com/sherlock-project/sherlock/master/sherlock/sherlock.py")
+
+        remote_version = str(re.findall('__version__ = "(.*)"', r.text)[0])
+        local_version = __version__
+
+        if remote_version != local_version:
+            print("Update Available!\n" +
+                  f"You are running version {local_version}. Version {remote_version} is available at https://git.io/sherlock")
+    
+    except Exception as error:
+        print(f"A problem occured while checking for an update: {error}")
 
 
     # Argument check
@@ -545,26 +557,20 @@ def main():
         site_data = {}
         site_missing = []
         for site in args.site_list:
+            counter = 0
             for existing_site in site_data_all:
                 if site.lower() == existing_site.lower():
                     site_data[existing_site] = site_data_all[existing_site]
-            if not site_data:
+                    counter += 1
+            if counter == 0:
                 # Build up list of sites not supported for future error message.
                 site_missing.append(f"'{site}'")
 
         if site_missing:
-            print(
-                f"Error: Desired sites not found: {', '.join(site_missing)}.")
+            print(f"Error: Desired sites not found: {', '.join(site_missing)}.")
+
+        if not site_data:
             sys.exit(1)
-
-    if args.rank:
-        # Sort data by rank
-        site_dataCpy = dict(site_data)
-        ranked_sites = sorted(site_data, key=lambda k: ("rank" not in k, site_data[k].get("rank", sys.maxsize)))
-        site_data = {}
-        for site in ranked_sites:
-            site_data[site] = site_dataCpy.get(site)
-
 
     #Create notify object for query results.
     query_notify = QueryNotifyPrint(result=None,
@@ -601,7 +607,7 @@ def main():
                 if dictionary.get("status").status == QueryStatus.CLAIMED:
                     exists_counter += 1
                     file.write(dictionary["url_user"] + "\n")
-            file.write(f"Total Websites Username Detected On : {exists_counter}")
+            file.write(f"Total Websites Username Detected On : {exists_counter}\n")
 
         if args.csv:
             with open(username + ".csv", "w", newline='', encoding="utf-8") as csv_report:
